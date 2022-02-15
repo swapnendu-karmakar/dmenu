@@ -29,7 +29,10 @@
 #define NUMBERSBUFSIZE        (NUMBERSMAXDIGITS * 2) + 1
 
 /* enums */
-enum { SchemeNorm, SchemeSel, SchemeOut, SchemeNormHighlight, SchemeSelHighlight, SchemeOutHighlight, SchemeLast }; /* color schemes */
+enum { SchemeNorm, SchemeSel, SchemeNormHighlight, SchemeSelHighlight,
+       SchemeOut, SchemeLast }; /* color schemes */
+
+
 struct item {
 	char *text;
 	struct item *left, *right;
@@ -138,7 +141,7 @@ drawhighlights(struct item *item, int x, int y, int maxw)
 	                   ? SchemeSelHighlight
 	                   : SchemeNormHighlight]);
 	for (i = 0, highlight = item->text; *highlight && text[i];) {
-		if (!fstrncmp(&(*highlight), &text[i], 1)) {
+		if (*highlight == text[i]) {
 			/* get indentation */
 			c = *highlight;
 			*highlight = '\0';
@@ -174,7 +177,7 @@ drawitem(struct item *item, int x, int y, int w)
 	else
 		drw_setscheme(drw, scheme[SchemeNorm]);
 
-    r = drw_text(drw, x, y, w, bh, lrpad / 2, item->text, 0);
+	r = drw_text(drw, x, y, w, bh, lrpad / 2, item->text, 0);
 	drawhighlights(item, x, y, w);
 	return r;
 }
