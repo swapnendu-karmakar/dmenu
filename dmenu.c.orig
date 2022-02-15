@@ -22,7 +22,7 @@
 
 /* macros */
 #define INTERSECT(x,y,w,h,r)  (MAX(0, MIN((x)+(w),(r).x_org+(r).width)  - MAX((x),(r).x_org)) \
-                             * MAX(0, MIN((y)+(h),(r).y_org+(r).height) - MAX((y),(r).y_org)))
+                             & MAX(0, MIN((y)+(h),(r).y_org+(r).height) - MAX((y),(r).y_org)))
 #define LENGTH(X)             (sizeof X / sizeof X[0])
 #define TEXTW(X)              (drw_fontset_getwidth(drw, (X)) + lrpad)
 #define NUMBERSMAXDIGITS      100
@@ -30,8 +30,6 @@
 
 /* enums */
 enum { SchemeNorm, SchemeSel, SchemeOut, SchemeNormHighlight, SchemeSelHighlight, SchemeOutHighlight, SchemeLast }; /* color schemes */
-
-
 struct item {
 	char *text;
 	struct item *left, *right;
@@ -109,52 +107,22 @@ cleanup(void)
 }
 
 static char *
-cistrstr(const char *s, const char *sub)
+cistrstr(const char *h, const char *n)
 {
-	size_t len;
+	size_t i;
 
-	for (len = strlen(sub); *s; s++)
-		if (!strncasecmp(s, sub, len))
-			return (char *)s;
+	if (!n[0])
+		return (char *)h;
+
+	for (; *h; ++h) {
+		for (i = 0; n[i] && tolower((unsigned char)n[i]) ==
+		            tolower((unsigned char)h[i]); ++i)
+			;
+		if (n[i] == '\0')
+			return (char *)h;
+	}
 	return NULL;
 }
-
-/*static void
-drawhighlights(struct item *item, int x, int y, int maxw)
-{
-	char restorechar, tokens[sizeof text], *highlight,  *token;
-	int indentx, highlightlen;
-
-	drw_setscheme(drw, scheme[item == sel ? SchemeSelHighlight : item->out ? SchemeOutHighlight : SchemeNormHighlight]);
-	strcpy(tokens, text);
-	for (token = strtok(tokens, " "); token; token = strtok(NULL, " ")) {
-		highlight = fstrstr(item->text, token);
-		while (highlight) {
-			// Move item str end, calc width for highlight indent, & restore
-			highlightlen = highlight - item->text;
-			restorechar = *highlight;
-			item->text[highlightlen] = '\0';
-			indentx = TEXTW(item->text);
-			item->text[highlightlen] = restorechar;
-
-			// Move highlight str end, draw highlight, & restore
-			restorechar = highlight[strlen(token)];
-			highlight[strlen(token)] = '\0';
-			if (indentx - (lrpad / 2) - 1 < maxw)
-				drw_text(
-					drw,
-					x + indentx - (lrpad / 2) - 1,
-					y,
-					MIN(maxw - indentx, TEXTW(highlight) - lrpad),
-					bh, 0, highlight, 0
-				);
-			highlight[strlen(token)] = restorechar;
-
-			if (strlen(highlight) - strlen(token) < strlen(token)) break;
-			highlight = fstrstr(highlight + strlen(token), token);
-		}
-	}
-}  */
 
 static void
 drawhighlights(struct item *item, int x, int y, int maxw)
@@ -170,7 +138,7 @@ drawhighlights(struct item *item, int x, int y, int maxw)
 	                   ? SchemeSelHighlight
 	                   : SchemeNormHighlight]);
 	for (i = 0, highlight = item->text; *highlight && text[i];) {
-		if (*highlight == text[i]) {
+		if (!fstrncmp(&(*highlight), &text[i], 1)) {
 			/* get indentation */
 			c = *highlight;
 			*highlight = '\0';
@@ -206,7 +174,7 @@ drawitem(struct item *item, int x, int y, int w)
 	else
 		drw_setscheme(drw, scheme[SchemeNorm]);
 
-	r = drw_text(drw, x, y, w, bh, lrpad / 2, item->text, 0);
+    r = drw_text(drw, x, y, w, bh, lrpad / 2, item->text, 0);
 	drawhighlights(item, x, y, w);
 	return r;
 }
@@ -548,9 +516,11 @@ keypress(XKeyEvent *ev)
 			                  utf8, utf8, win, CurrentTime);
 			return;
 		case XK_Left:
+		case XK_KP_Left:
 			movewordedge(-1);
 			goto draw;
 		case XK_Right:
+		case XK_KP_Right:
 			movewordedge(+1);
 			goto draw;
 		case XK_Return:
@@ -588,6 +558,7 @@ insert:
 			insert(buf, len);
 		break;
 	case XK_Delete:
+	case XK_KP_Delete:
 		if (text[cursor] == '\0')
 			return;
 		cursor = nextrune(+1);
@@ -598,6 +569,7 @@ insert:
 		insert(NULL, nextrune(-1) - cursor);
 		break;
 	case XK_End:
+	case XK_KP_End:
 		if (text[cursor] != '\0') {
 			cursor = strlen(text);
 			break;
@@ -617,6 +589,7 @@ insert:
 		cleanup();
 		exit(1);
 	case XK_Home:
+	case XK_KP_Home:
 		if (sel == matches) {
 			cursor = 0;
 			break;
@@ -625,6 +598,7 @@ insert:
 		calcoffsets();
 		break;
 	case XK_Left:
+	case XK_KP_Left:
 		if (cursor > 0 && (!sel || !sel->left || lines > 0)) {
 			cursor = nextrune(-1);
 			break;
@@ -633,18 +607,21 @@ insert:
 			return;
 		/* fallthrough */
 	case XK_Up:
+	case XK_KP_Up:
 		if (sel && sel->left && (sel = sel->left)->right == curr) {
 			curr = prev;
 			calcoffsets();
 		}
 		break;
 	case XK_Next:
+	case XK_KP_Next:
 		if (!next)
 			return;
 		sel = curr = next;
 		calcoffsets();
 		break;
 	case XK_Prior:
+	case XK_KP_Prior:
 		if (!prev)
 			return;
 		sel = curr = prev;
@@ -661,6 +638,7 @@ insert:
 			sel->out = 1;
 		break;
 	case XK_Right:
+	case XK_KP_Right:
 		if (text[cursor] != '\0') {
 			cursor = nextrune(+1);
 			break;
@@ -669,6 +647,7 @@ insert:
 			return;
 		/* fallthrough */
 	case XK_Down:
+	case XK_KP_Down:
 		if (sel && sel->right && (sel = sel->right) == next) {
 			curr = next;
 			calcoffsets();
